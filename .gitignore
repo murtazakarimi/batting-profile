@@ -172,3 +172,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Mac related files
+.DS_Store
+
+# Exported files
+export.csv
+output.csv
+output/
+
+# cache files
+data_cache/
+
