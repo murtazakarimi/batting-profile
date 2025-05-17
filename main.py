@@ -76,7 +76,7 @@ def get_schedule(date_str='2025-05-15'):
         print(f"Critical error fetching schedule for {date_str}: {e}")
         return pd.DataFrame()
 
-def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr'):
+def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', export_each=False):
     """Process the MLB schedule for a given date to predict home run prospects or matchup outcomes."""
     batter_df, pitcher_df, statcast_df = load_baseball_data()
     weather_obj = BallparkWeather(api_key=api_key)
@@ -112,8 +112,9 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr'):
         hr_tool = HomeRunProjectionTool(feature_config=feature_config)
         
         all_prospects = []
-        output_base_dir = f"output/{date_str.replace('-', '')}/homeruns"
-        os.makedirs(output_base_dir, exist_ok=True)
+        if export_each:
+            output_base_dir = f"output/{date_str.replace('-', '')}/homeruns"
+            os.makedirs(output_base_dir, exist_ok=True)
         
         for _, row in schedule_df.iterrows():
             away_team = row['away_name']
@@ -184,10 +185,11 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr'):
                     combined_prospects = combined_prospects.sort_values('matchup_score', ascending=False)
                     combined_prospects = combined_prospects.drop_duplicates(subset=['Name'], keep='first')
                 all_prospects.append(combined_prospects)
-                # Save combined prospects to CSV
-                csv_path = f"{output_base_dir}/{csv_matchup_str}.csv"
-                combined_prospects.to_csv(csv_path, index=False)
-                print(f"Saved matchup prospects to {csv_path}")
+                # Save combined prospects to CSV if export_each is True
+                if export_each:
+                    csv_path = f"{output_base_dir}/{csv_matchup_str}.csv"
+                    combined_prospects.to_csv(csv_path, index=False)
+                    print(f"Saved matchup prospects to {csv_path}")
         
         if not all_prospects:
             print("No prospects found for the given schedule.")
@@ -231,10 +233,10 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr'):
 
 if __name__ == "__main__":
     api_key = "714a571b971e414d9b6193548251405"
-    date_str = '2025-05-16'
+    date_str = '2025-05-17'
     model_type = 'hr'
     results = process_today_schedule(api_key, date_str, model_type)
-
+    
     if not results.empty:
         if model_type.lower() == 'hr':
             print("\nTop Home Run Prospects for", date_str)
@@ -244,6 +246,10 @@ if __name__ == "__main__":
                 'Recent_Flyball%', 'Long_Flyout_Count', 'Swing_Discipline_Score',
                 'Recent_HR_Score'
             ]])
+            # Export complete DataFrame to root folder
+            export_path = f"output/hr_predictions_{date_str.replace('-', '')}.csv"
+            results.to_csv(export_path, index=False)
+            print(f"Saved complete prospects to {export_path}")
         else:
             print("\nMatchup Outcome Predictions for", date_str)
             print(results[[
