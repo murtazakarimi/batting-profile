@@ -163,6 +163,17 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
                 park_factors=park_factors
             )
             
+            # Calculate total expected home runs
+            total_hr = 0.0
+            if not home_prospects.empty and not away_prospects.empty:
+                # Sum starter and bullpen probabilities, weighted by innings (2/3 starter, 1/3 bullpen)
+                starter_hr = (home_prospects['hr_probability'].sum() + away_prospects['hr_probability'].sum())
+                bullpen_hr = (home_prospects['bp_hr_probability'].sum() + away_prospects['bp_hr_probability'].sum())
+                total_hr = (2/3 * starter_hr + 1/3 * bullpen_hr)
+                print(f"Expected total home runs for {matchup_str}: {total_hr:.2f}")
+            else:
+                print(f"Warning: Insufficient data for {matchup_str}. Expected total home runs: 0.00")
+            
             # Combine prospects for both pitchers
             matchup_prospects = []
             if not home_prospects.empty:
@@ -246,8 +257,10 @@ if __name__ == "__main__":
                 'Recent_Flyball%', 'Long_Flyout_Count', 'Swing_Discipline_Score',
                 'Recent_HR_Score'
             ]])
-            # Export complete DataFrame to root folder
-            export_path = f"output/hr_predictions_{date_str.replace('-', '')}.csv"
+            # Export complete DataFrame to output folder
+            output_base_dir = "output"
+            os.makedirs(output_base_dir, exist_ok=True)
+            export_path = f"{output_base_dir}/hr_predictions_{date_str.replace('-', '')}.csv"
             results.to_csv(export_path, index=False)
             print(f"Saved complete prospects to {export_path}")
         else:
