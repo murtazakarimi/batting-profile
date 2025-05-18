@@ -78,6 +78,10 @@ class HomeRunProjectionTool:
                 return pd.DataFrame(columns=empty_cols)
             print(f"Pitcher {pitcher_name} handedness: {pitcher_hand}")
             print(f"HR rates by batter hand vs. {pitcher_name}: {hr_rate_by_hand}")
+            # Skip if HR rates are zero for both handedness
+            if hr_rate_by_hand.get('L', 0.0) == 0.0 and hr_rate_by_hand.get('R', 0.0) == 0.0:
+                print(f"Warning: Skipping {pitcher_name} due to zero HR rates for both L and R batters.")
+                return pd.DataFrame(columns=empty_cols)
         
         # Get vulnerable pitches
         vulnerable_pitches = pd.DataFrame()

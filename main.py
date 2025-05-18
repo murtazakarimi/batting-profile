@@ -233,7 +233,7 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
 
 if __name__ == "__main__":
     api_key = "714a571b971e414d9b6193548251405"
-    date_str = '2025-05-17'
+    date_str = '2025-05-18'
     model_type = 'hr'
     results = process_today_schedule(api_key, date_str, model_type)
     
