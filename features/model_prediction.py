@@ -21,10 +21,6 @@ def train_and_predict(data, features, target='hr_probability'):
         X = data[features]
         y = data[target] if target in data.columns else (data['hr_rate'] > 0).astype(int)
         
-        # Log data summary
-        print(f"Training data shape: {X.shape}")
-        print(f"Target mean: {y.mean():.4f}, non-zero count: {(y > 0).sum()}")
-        
         # Split data (use small test size due to potentially small dataset)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=(y > 0) if (y > 0).any() else None
@@ -63,7 +59,6 @@ def train_and_predict(data, features, target='hr_probability'):
         # Evaluate model
         if len(X_test) > 0:
             test_auc = roc_auc_score(y_test, xgb_model.predict(dtest))
-            print(f"Test AUC: {test_auc:.4f}")
         
         return predictions
     

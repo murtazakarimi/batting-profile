@@ -41,7 +41,6 @@ class HomeRunProjectionTool:
         
         # Ensure batter column in statcast_df is string
         statcast_df['batter'] = statcast_df['batter'].astype(str)
-        print(f"statcast_df['batter'] dtype: {statcast_df['batter'].dtype}")
         
         # Handle missing Statcast data
         statcast_df['pitch_type'] = statcast_df['pitch_type'].fillna('Unknown')
@@ -136,7 +135,6 @@ class HomeRunProjectionTool:
             roster = player_ids.get('roster', [])
             roster_missing = [pid for pid in player_ids.get('mlbam', []) if str(pid) not in [bs['batter'].iloc[0] for bs in batter_stats]]
             if roster_missing:
-                print(f"Adding {len(roster_missing)} rostered players with season-level stats: {roster_missing}")
                 # Preprocess batter_df to align teams with players.csv
                 batter_df = batter_df.copy()
                 batter_df['IDfg'] = batter_df['IDfg'].astype(str)
@@ -149,7 +147,7 @@ class HomeRunProjectionTool:
                 batter_df['Team'] = batter_df['Team_csv'].combine_first(batter_df['Team']).apply(standardize_team_short_name)
                 batter_df['Name'] = batter_df['Name_csv'].combine_first(batter_df['Name'])
                 batter_df = batter_df.drop(columns=['Team_csv', 'Name_csv'], errors='ignore')
-                print(f"Unique teams in batter_df after standardization: {batter_df['Team'].unique().tolist()}")
+                # print(f"Unique teams in batter_df after standardization: {batter_df['Team'].unique().tolist()}")
                 
                 season_stats = batter_df[batter_df['IDfg'].isin([str(fg_id) for fg_id in fangraphs_ids])][[
                     'IDfg', 'Name', 'Team', 'wRC+', 'AVG', 'FB%', 'Pull%', 'K%', 'BB%', 'HR/FB'
@@ -215,8 +213,8 @@ class HomeRunProjectionTool:
         
         # Ensure batter column is string
         batter_performance['batter'] = batter_performance['batter'].astype(str)
-        print(f"batter_performance['batter'] dtype: {batter_performance['batter'].dtype}")
-        print(f"Batter IDs after mapping: {batter_performance['batter'].unique().tolist()}")
+        # print(f"batter_performance['batter'] dtype: {batter_performance['batter'].dtype}")
+        # print(f"Batter IDs after mapping: {batter_performance['batter'].unique().tolist()}")
         
         # Map batter IDs to names and FanGraphs IDs
         unique_batter_ids = batter_performance['batter'].unique()
@@ -226,7 +224,9 @@ class HomeRunProjectionTool:
             roster=player_ids.get('roster', []) if player_ids else [],
             manual_name_mapping=manual_name_mapping
         )
-        print(f"Name mapping contents: {name_mapping[['mlbam_id', 'name']].to_dict('records')}")
+
+        # print(f"Name mapping contents: {name_mapping[['mlbam_id', 'name']].to_dict('records')}")
+        
         if name_mapping.empty:
             print("Warning: Name mapping failed for all batters.")
             name_mapping = statcast_df[['batter', 'player_name_standard']].drop_duplicates()
@@ -275,8 +275,8 @@ class HomeRunProjectionTool:
         batter_metrics['Name'] = batter_metrics['Name_csv'].combine_first(batter_metrics['Name'])
         batter_metrics = batter_metrics.drop(columns=['Team_csv', 'Name_csv'], errors='ignore')
         batter_metrics = batter_metrics.rename(columns={'FB%': 'Flyball%'})
-        print(f"Available FanGraphs IDs in batter_df: {batter_metrics['IDfg'].tolist()}")
-        print(f"Available batter names in batter_df: {batter_metrics['Name'].tolist()}")
+        # print(f"Available FanGraphs IDs in batter_df: {batter_metrics['IDfg'].tolist()}")
+        # print(f"Available batter names in batter_df: {batter_metrics['Name'].tolist()}")
         
         batter_performance = batter_performance.merge(
             batter_metrics, left_on='key_fangraphs', right_on='IDfg', how='left', suffixes=('', '_metrics')
@@ -284,7 +284,6 @@ class HomeRunProjectionTool:
         
         missing_batters = batter_performance[batter_performance['Name'].isna()]['batter'].unique()
         if len(missing_batters) > 0:
-            print(f"Warning: {len(missing_batters)} batters excluded due to missing metrics: {missing_batters.tolist()}")
             # Fallback: Use default metrics and players.csv data
             batter_performance.loc[batter_performance['Name'].isna(), 'Name'] = batter_performance['name']
             batter_performance.loc[batter_performance['Team'].isna(), 'Team'] = batter_performance['batter'].map(
@@ -309,7 +308,6 @@ class HomeRunProjectionTool:
             try:
                 matchup_history = get_matchup_history(pitcher_statcast, self.prediction_date, include_minor_league=True)
                 matchup_history['batter'] = matchup_history['batter'].astype(str)
-                print(f"matchup_history['batter'] dtype: {matchup_history['batter'].dtype}")
                 batter_performance = batter_performance.merge(
                     matchup_history[['batter', 'matchup_hr_rate', 'matchup_pa', 'matchup_woba']],
                     on='batter', how='left'
@@ -326,7 +324,6 @@ class HomeRunProjectionTool:
         if self.feature_config['pitch_metrics']:
             pitch_metrics = get_pitch_specific_metrics(pitcher_statcast, min_pitches)
             pitch_metrics['batter'] = pitch_metrics['batter'].astype(str)
-            print(f"pitch_metrics['batter'] dtype: {pitch_metrics['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 pitch_metrics[['batter', 'pitch_type', 'pitch_exit_velo', 'pitch_launch_angle']],
                 on=['batter', 'pitch_type'], how='left'
@@ -349,7 +346,6 @@ class HomeRunProjectionTool:
         if self.feature_config['weighted_hr_rate']:
             weighted_hr_data = get_weighted_hr_rate(statcast_df, self.prediction_date)
             weighted_hr_data['batter'] = weighted_hr_data['batter'].astype(str)
-            print(f"weighted_hr_data['batter'] dtype: {weighted_hr_data['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 weighted_hr_data[['batter', 'weighted_hr_rate']],
                 on='batter', how='left'
@@ -359,7 +355,6 @@ class HomeRunProjectionTool:
         if self.feature_config['long_flyouts']:
             long_flyouts = get_long_flyout_count(statcast_df, prediction_date=self.prediction_date)
             long_flyouts['batter'] = long_flyouts['batter'].astype(str)
-            print(f"long_flyouts['batter'] dtype: {long_flyouts['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 long_flyouts[['batter', 'Long_Flyout_Count']],
                 on='batter', how='left'
@@ -369,7 +364,6 @@ class HomeRunProjectionTool:
         if self.feature_config['swing_discipline']:
             swing_discipline = get_swing_discipline_score(statcast_df, self.prediction_date)
             swing_discipline['batter'] = swing_discipline['batter'].astype(str)
-            print(f"swing_discipline['batter'] dtype: {swing_discipline['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 swing_discipline[['batter', 'Swing_Discipline_Score']],
                 on='batter', how='left'
@@ -379,7 +373,6 @@ class HomeRunProjectionTool:
         if self.feature_config['recent_flyball']:
             recent_flyball = get_recent_flyball_rate(statcast_df)
             recent_flyball['batter'] = recent_flyball['batter'].astype(str)
-            print(f"recent_flyball['batter'] dtype: {recent_flyball['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 recent_flyball[['batter', 'Recent_Flyball%']],
                 on='batter', how='left'
@@ -389,7 +382,6 @@ class HomeRunProjectionTool:
             )
             recent_hr = get_recent_hr_streak(statcast_df, self.prediction_date)
             recent_hr['batter'] = recent_hr['batter'].astype(str)
-            print(f"recent_hr['batter'] dtype: {recent_hr['batter'].dtype}")
             batter_performance = batter_performance.merge(
                 recent_hr[['batter', 'Recent_HR_Score']],
                 on='batter', how='left'
@@ -399,7 +391,6 @@ class HomeRunProjectionTool:
         # Add pitch and batter similarity
         similarity_scores = get_pitch_batter_similarity(statcast_df, pitcher_name, self.prediction_date)
         similarity_scores['batter'] = similarity_scores['batter'].astype(str)
-        print(f"similarity_scores['batter'] dtype: {similarity_scores['batter'].dtype}")
         batter_performance = batter_performance.merge(
             similarity_scores[['batter', 'Similarity_HR_Rate']],
             on='batter', how='left'
@@ -409,7 +400,6 @@ class HomeRunProjectionTool:
         # Add bullpen matchup score
         bullpen_scores = get_bullpen_matchup(statcast_df, home_team, self.prediction_date)
         bullpen_scores['batter'] = bullpen_scores['batter'].astype(str)
-        print(f"bullpen_scores['batter'] dtype: {bullpen_scores['batter'].dtype}")
         batter_performance = batter_performance.merge(
             bullpen_scores[['batter', 'bp_hr_probability', 'bp_matchup_score']],
             on='batter', how='left'
@@ -449,20 +439,11 @@ class HomeRunProjectionTool:
             'bp_hr_probability', 'bp_matchup_score'
         ]
         if self.feature_config['model_prediction']:
-            # Log batter_performance state
-            print(f"batter_performance shape: {batter_performance.shape}")
-            print(f"batter_performance columns: {batter_performance.columns.tolist()}")
-            print(f"batter_performance['hr_rate'] summary: {batter_performance['hr_rate'].describe()}")
             if batter_performance[features].isna().any().any():
                 print("Warning: Missing values in features. Filling with median.")
                 batter_performance[features] = batter_performance[features].fillna(batter_performance[features].median())
             
             batter_performance['hr_probability'] = train_and_predict(batter_performance, features)
-            # Check for missing players
-            expected_mlbid = ['514888', '572233', '701305', '701358']
-            missing_mlbid = [mid for mid in expected_mlbid if mid not in batter_performance['batter'].values]
-            if missing_mlbid:
-                print(f"Missing MLBAM IDs in batter_performance: {missing_mlbid}")
             
             if self.feature_config['batter_handedness']:
                 batter_performance['hand_adjust'] = batter_performance['batter_hand'].map(
