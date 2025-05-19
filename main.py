@@ -8,10 +8,10 @@ from data_loader import load_baseball_data
 from prospect_analyzer import HomeRunProjectionTool
 from outcome_analyzer import OutcomeProjectionTool
 from weather import BallparkWeather
-from utils import standardize_team_short_name, TEAM_ID_MAPPING
+from utils import standardize_team_short_name, TEAM_ID_MAPPING, get_team_roster
 import os
 
-def get_schedule(date_str='2025-05-15'):
+def get_schedule(date_str='2025-05-18'):
     """Fetch the MLB schedule with robust retries, relying on statsapi for 2025 data."""
     try:
         for attempt in range(3):
@@ -76,7 +76,7 @@ def get_schedule(date_str='2025-05-15'):
         print(f"Critical error fetching schedule for {date_str}: {e}")
         return pd.DataFrame()
 
-def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', export_each=False):
+def process_today_schedule(api_key, date_str='2025-05-18', model_type='hr', export_each=False):
     """Process the MLB schedule for a given date to predict home run prospects or matchup outcomes."""
     batter_df, pitcher_df, statcast_df = load_baseball_data()
     weather_obj = BallparkWeather(api_key=api_key)
@@ -133,6 +133,22 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
             print('')
             print(f"Processing game: {matchup_str} on {game_date} at {game_hour}:00")
             
+            # Fetch team rosters
+            away_roster = get_team_roster(away_team, batter_df, min_pa=10)
+            home_roster = get_team_roster(home_team, batter_df, min_pa=10)
+            away_player_ids = {
+                'mlbam': [player['mlbam_id'] for player in away_roster],
+                'fangraphs': [player['key_fangraphs'] for player in away_roster if player['key_fangraphs']],
+                'roster': away_roster  # Pass full roster for debugging
+            }
+            home_player_ids = {
+                'mlbam': [player['mlbam_id'] for player in home_roster],
+                'fangraphs': [player['key_fangraphs'] for player in home_roster if player['key_fangraphs']],
+                'roster': home_roster  # Pass full roster for debugging
+            }
+            # print(f"Away team {away_team} roster: {[player['name'] for player in away_roster]}")
+            # print(f"Home team {home_team} roster: {[player['name'] for player in home_roster]}")
+            
             try:
                 weather_data = weather_obj.get_forecast(matchup_str, game_hour=game_hour, game_date=game_date)
             except (ValueError, Exception) as e:
@@ -148,7 +164,8 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
                 weather=weather_data,
                 team=away_team,
                 home_team=home_team,
-                park_factors=park_factors
+                park_factors=park_factors,
+                player_ids=away_player_ids
             )
             
             # Process away team prospects (home team batters vs. away pitcher)
@@ -160,13 +177,13 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
                 weather=weather_data,
                 team=home_team,
                 home_team=home_team,
-                park_factors=park_factors
+                park_factors=park_factors,
+                player_ids=home_player_ids
             )
             
             # Calculate total expected home runs
             total_hr = 0.0
             if not home_prospects.empty and not away_prospects.empty:
-                # Sum starter and bullpen probabilities, weighted by innings (2/3 starter, 1/3 bullpen)
                 starter_hr = (home_prospects['hr_probability'].sum() + away_prospects['hr_probability'].sum())
                 bullpen_hr = (home_prospects['bp_hr_probability'].sum() + away_prospects['bp_hr_probability'].sum())
                 total_hr = (2/3 * starter_hr + 1/3 * bullpen_hr)
@@ -190,13 +207,11 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
             
             if matchup_prospects:
                 combined_prospects = pd.concat(matchup_prospects, ignore_index=True)
-                # Remove duplicate batters based on Name
                 if combined_prospects['Name'].duplicated().any():
                     print(f"Warning: Found {combined_prospects['Name'].duplicated().sum()} duplicate batters in {csv_matchup_str}. Keeping highest matchup_score.")
                     combined_prospects = combined_prospects.sort_values('matchup_score', ascending=False)
                     combined_prospects = combined_prospects.drop_duplicates(subset=['Name'], keep='first')
                 all_prospects.append(combined_prospects)
-                # Save combined prospects to CSV if export_each is True
                 if export_each:
                     csv_path = f"{output_base_dir}/{csv_matchup_str}.csv"
                     combined_prospects.to_csv(csv_path, index=False)
@@ -207,7 +222,6 @@ def process_today_schedule(api_key, date_str='2025-05-15', model_type='hr', expo
             return pd.DataFrame()
         
         all_prospects = pd.concat(all_prospects, ignore_index=True)
-        # Remove duplicates in final output
         if all_prospects['Name'].duplicated().any():
             print(f"Warning: Found {all_prospects['Name'].duplicated().sum()} duplicate batters in final output. Keeping highest matchup_score.")
             all_prospects = all_prospects.sort_values('matchup_score', ascending=False)
@@ -257,7 +271,6 @@ if __name__ == "__main__":
                 'Recent_Flyball%', 'Long_Flyout_Count', 'Swing_Discipline_Score',
                 'Recent_HR_Score'
             ]])
-            # Export complete DataFrame to output folder
             output_base_dir = "output"
             os.makedirs(output_base_dir, exist_ok=True)
             export_path = f"{output_base_dir}/hr_predictions_{date_str.replace('-', '')}.csv"

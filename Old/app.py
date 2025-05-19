@@ -5,6 +5,7 @@ import numpy as np
 # import matchup
 # import helper
 # import commons
+from datetime import datetime, timedelta
 from pybaseball import statcast
 from pybaseball import standings
 from pybaseball import team_game_logs
@@ -13,10 +14,15 @@ from pybaseball import playerid_lookup
 from pybaseball import batting_stats_range
 from pybaseball import batting_stats
 from pybaseball import pitching_stats
+from pybaseball import playerid_reverse_lookup
 from weather import BallparkWeather
+from pybaseball import team_ids
+from pybaseball.lahman import *
 
-data = team_game_logs(2025, "ATH", "batting")
-print(data)
+# batting = team_batting(2019).add_prefix('batting.')
+
+# data = team_game_logs(2025, "ATH", "batting")
+# print(data)
 # Create sidebar and load match ups
 # with st.sidebar:
 #     selected_game = st.selectbox(
@@ -27,9 +33,9 @@ print(data)
 # Selected match up
 # selected_matchup = matchup.schedule[matchup.schedule_dropdown.index(selected_game)]
 
-games = statsapi.schedule(start_date='03/10/2025', end_date='2025/05/15', team=None)
+# games = statsapi.schedule(start_date='03/10/2025', end_date='2025/05/15', team=None)
 
-st.write(games)
+# st.write(games)
 
 # # Title of the match between opponents and venue
 # st.header(f"{selected_matchup['away_name']} vs. {selected_matchup['home_name']}")
@@ -110,7 +116,18 @@ st.write(games)
 #         home_df_clean = home_df.drop(columns=['Age', '#days', 'Lev', 'Tm', 'PA', 'R', '2B', '3B', 'BB', 'IBB', 'SO', 'HBP', 'SH', 'SF', 'GDP', 'CS', 'mlbID']).sort_values(by='BA', ascending=False)
 #     # st.dataframe(home_df_clean)
 
+# schedule = statsapi.schedule(date="05/18/2025", sportId=1, include_series_status=True)
+# print(schedule)
+# away_roster = statsapi.roster(117, rosterType='active', season=datetime.now().year)
+# print(away_roster)
+
+ 
+# player = playerid_lookup('Dezenzo', first='Zach', fuzzy=False)
+# print(player)
 
 
+21636
 
+pl = playerid_reverse_lookup([16442, 17929, 26289, 17128, 18795, 19890, 26288, 18373, 20126, 31166, 17273], key_type='fangraphs')
+print(pl)
 

@@ -1,41 +1,72 @@
 import pandas as pd
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
 import numpy as np
-from xgboost import XGBClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
 
-def train_and_predict(data, features, use_ensemble=True):
-    """Train an ensemble model to predict HR probability."""
-    if data.empty:
-        return np.zeros(len(data))
-    
-    X = data[features].fillna(0)
-    # Placeholder: Use historical HR outcomes for training
-    y = data['hr_count'].div(data['PA'].replace(0, 1)).apply(lambda x: 1 if x > 0.035 else 0)
-    
-    if use_ensemble:
-        xgb_model = XGBClassifier(random_state=42, n_estimators=100, max_depth=5, learning_rate=0.1)
-        rf_model = RandomForestClassifier(random_state=42, n_estimators=100, max_depth=10)
+def train_and_predict(data, features, target='hr_probability'):
+    """Train an XGBoost model to predict home run probabilities and return predictions."""
+    try:
+        # Validate input data
+        if data.empty or not all(f in data.columns for f in features):
+            print("Warning: Empty data or missing features. Returning default probabilities.")
+            return np.full(len(data), 0.035)  # Default league-average HR probability
         
-        # Train both models
-        xgb_model.fit(X, y)
-        rf_model.fit(X, y)
+        # Check for missing values
+        if data[features].isna().any().any():
+            print("Warning: Missing values in features. Filling with median.")
+            data[features] = data[features].fillna(data[features].median())
         
-        # Cross-validate for model weights
-        xgb_scores = cross_val_score(xgb_model, X, y, cv=5, scoring='roc_auc')
-        rf_scores = cross_val_score(rf_model, X, y, cv=5, scoring='roc_auc')
-        xgb_weight = xgb_scores.mean() / (xgb_scores.mean() + rf_scores.mean())
-        rf_weight = rf_scores.mean() / (xgb_scores.mean() + rf_scores.mean())
-        print(f"Ensemble weights: XGBoost={xgb_weight:.3f}, RandomForest={rf_weight:.3f}")
+        # Prepare features and target
+        X = data[features]
+        y = data[target] if target in data.columns else (data['hr_rate'] > 0).astype(int)
         
-        # Combine predictions
-        xgb_probs = xgb_model.predict_proba(X)[:, 1]
-        rf_probs = rf_model.predict_proba(X)[:, 1]
-        final_probs = xgb_weight * xgb_probs + rf_weight * rf_probs
-    else:
-        from sklearn.linear_model import LogisticRegression
-        model = LogisticRegression(random_state=42, max_iter=2000)
-        model.fit(X, y)
-        final_probs = model.predict_proba(X)[:, 1]
+        # Log data summary
+        print(f"Training data shape: {X.shape}")
+        print(f"Target mean: {y.mean():.4f}, non-zero count: {(y > 0).sum()}")
+        
+        # Split data (use small test size due to potentially small dataset)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=(y > 0) if (y > 0).any() else None
+        )
+        
+        # Configure XGBoost model
+        params = {
+            'objective': 'binary:logistic',
+            'eval_metric': 'auc',
+            'max_depth': 4,
+            'eta': 0.1,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'base_score': 0.5,  # Set valid base_score for logistic loss
+            'random_state': 42
+        }
+        
+        # Convert to DMatrix
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dtest = xgb.DMatrix(X_test, label=y_test)
+        
+        # Train model
+        xgb_model = xgb.train(
+            params,
+            dtrain,
+            num_boost_round=100,
+            evals=[(dtest, 'test')],
+            early_stopping_rounds=10,
+            verbose_eval=False
+        )
+        
+        # Predict probabilities
+        ddata = xgb.DMatrix(X)
+        predictions = xgb_model.predict(ddata)
+        
+        # Evaluate model
+        if len(X_test) > 0:
+            test_auc = roc_auc_score(y_test, xgb_model.predict(dtest))
+            print(f"Test AUC: {test_auc:.4f}")
+        
+        return predictions
     
-    return final_probs
+    except Exception as e:
+        print(f"Error in train_and_predict: {e}")
+        return np.full(len(data), 0.035)  # Fallback to default probability
